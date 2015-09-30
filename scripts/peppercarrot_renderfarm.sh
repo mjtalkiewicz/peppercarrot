@@ -45,6 +45,7 @@ scriptversion="1.0"
 # * Krita (<2.9)
 # * Inkscape
 # * diff
+# * parallel
 
 # SPEC :
 # lang project use iso-code two characters.
@@ -60,45 +61,45 @@ scriptversion="1.0"
 
 # User preferences:
 # Module to activate ( 1=yes, 0=no ):
-singlepage_generation=1
-cropping_pages=1
-zip_generation=0
+export singlepage_generation=1
+export cropping_pages=1
+export zip_generation=0
 
 # imagemagic, (eg. "992x", "865x", no percent )
-resizejpg="992x"
+export resizejpg="992x"
 
 #custom folders names:
-folder_backup="backup"
-folder_cache="cache"
-folder_lang="lang"
-folder_lowres="low-res"
-folder_singlepage="single-page"
-folder_hires="hi-res"
-folder_gfxonly="gfx-only"
-folder_wip="wip"
-folder_zip="zip"
+export folder_backup="backup"
+export folder_cache="cache"
+export folder_lang="lang"
+export folder_lowres="low-res"
+export folder_singlepage="single-page"
+export folder_hires="hi-res"
+export folder_gfxonly="gfx-only"
+export folder_wip="wip"
+export folder_zip="zip"
 
 # Utils
-projectname="${PWD##*/}"
-workingpath="${PWD}"
-isodate=$(date +%Y-%m-%d)
-version=$(date +%Y%m%d%H%M)
-versiondaily=$(date +%Y%m%d)
-Off=$'\e[0m'
-Purple=$'\e[1;35m'
-Blue=$'\e[1;34m'
-Green=$'\e[1;32m'
-Red=$'\e[1;31m'
-Yellow=$'\e[1;33m'
-White=$'\e[1;37m'
-BlueBG=$'\e[1;44m'
-RedBG=$'\e[1;41m'
-PurpleBG=$'\e[1;45m'
-Black=$'\e[1;30m'
+export projectname="${PWD##*/}"
+export workingpath="${PWD}"
+export isodate=$(date +%Y-%m-%d)
+export version=$(date +%Y%m%d%H%M)
+export versiondaily=$(date +%Y%m%d)
+export Off=$'\e[0m'
+export Purple=$'\e[1;35m'
+export Blue=$'\e[1;34m'
+export Green=$'\e[1;32m'
+export Red=$'\e[1;31m'
+export Yellow=$'\e[1;33m'
+export White=$'\e[1;37m'
+export BlueBG=$'\e[1;44m'
+export RedBG=$'\e[1;41m'
+export PurpleBG=$'\e[1;45m'
+export Black=$'\e[1;30m'
 
 # Memory token
-gfx_need_regen=0
-svg_need_commit=0
+export gfx_need_regen=0
+export svg_need_commit=0
 
 clear
 
@@ -196,29 +197,9 @@ _dir_creation()
     echo ""
 }
 
-_update_gfx_cache()
+_update_gfx_cache_changed_gif()
 {
-    # Method to update change in graphical file
-    # trying to be smart and consume the less power, but more disk space.
-    # ( only file changed are reprocessed thanks to a cache )
-    
-    # project might not contain yet a README.md
-        if [ ! -f "$folder_lang"/README.md ]; then
-            #no
-            echo "${Red} MD: No $folder_lang/README.md found, you might consider to create one, or setup a GITHUB.${Off}"
-        else
-            #yes
-            echo " ${Yellow}==> ${Blue}README.md${Off} found."
-        fi
-
-    # project might contain *.gif animation
-    getamountofgif=`ls -1 *.gif 2>/dev/null | wc -l`
-    if [ $getamountofgif != 0 ]
-    then 
-    echo "${Yellow} Gif: Processing the gif files in project root.${Off}"
-    echo "${Yellow} =-=-=-=-=-=-=-=-=-=[GIF]=-=-=-=-=-=-=-=-=-=-=-${Off}"
-        for giffile in *.gif;
-            do
+giffile=$1
             pngfile=$(echo $giffile|sed 's/\(.*\)\..\+/\1/')".png"
            
             # compare if gif file changed
@@ -281,18 +262,12 @@ _update_gfx_cache()
                         convert $gifframe1 -resize "$resizejpg" -unsharp 0.48x0.48+0.50+0.012 -colorspace sRGB -quality 92% "$workingpath"/"$folder_lang"/gfx_"$pngfile"
                 done
             fi
-        done
-    fi
-    
-    
-    echo ""
-    echo "${Yellow} GFX: Scanning for *.kra pages to update the cache.${Off}"
-    echo "${Yellow} =-=-=-=-=-=-=-=-=-=-=-[KRA]-=-=-=-=-=-=-=-=-=-=-=-${Off}"
-    
-    cd "$workingpath"
-    
-    for krafile in *.kra;
-        do
+}
+
+_update_gfx_cache_changed_kra()
+{
+krafile=$1
+cd "$workingpath"
         pngfile=$(echo $krafile|sed 's/\(.*\)\..\+/\1/')".png"
         jpgfile=$(echo $krafile|sed 's/\(.*\)\..\+/\1/')".jpg"
         svgfile=$(echo $krafile|sed 's/\(.*\)\..\+/\1/')".svg"
@@ -419,25 +394,49 @@ _update_gfx_cache()
             
             done
         fi
-    done
+}
+
+_update_gfx_cache()
+{
+    # Method to update change in graphical file
+    # trying to be smart and consume the less power, but more disk space.
+    # ( only file changed are reprocessed thanks to a cache )
+    
+    # project might not contain yet a README.md
+        if [ ! -f "$folder_lang"/README.md ]; then
+            #no
+            echo "${Red} MD: No $folder_lang/README.md found, you might consider to create one, or setup a GITHUB.${Off}"
+        else
+            #yes
+            echo " ${Yellow}==> ${Blue}README.md${Off} found."
+        fi
+
+    # project might contain *.gif animation
+    getamountofgif=`ls -1 *.gif 2>/dev/null | wc -l`
+    if [ $getamountofgif != 0 ]
+    then 
+    echo "${Yellow} Gif: Processing the gif files in project root.${Off}"
+    echo "${Yellow} =-=-=-=-=-=-=-=-=-=[GIF]=-=-=-=-=-=-=-=-=-=-=-${Off}"
+    export -f _update_gfx_cache_changed_gif
+    ls -1 *.gif | parallel _update_gfx_cache_changed_gif "{}"
+    fi
+    
+    
+    echo ""
+    echo "${Yellow} GFX: Scanning for *.kra pages to update the cache.${Off}"
+    echo "${Yellow} =-=-=-=-=-=-=-=-=-=-=-[KRA]-=-=-=-=-=-=-=-=-=-=-=-${Off}"
+    
+    cd "$workingpath"
+    
+    export -f _update_gfx_cache_changed_kra
+    ls -1 *.kra | parallel _update_gfx_cache_changed_kra "{}"
     
 }
 
-_update_lang()
+_update_lang_work()
 {
-    # Method to catch a change or addition in langage
-    # can be activated as a standalone class when comic
-    # gfx are stable and doesn't change a lot.
-    
-    echo ""
-    echo "${Yellow} [LANG-MAIN] : Scanning for subdirectories.${Off}"
-    echo "${Yellow} =-=-=-=-=-=--=-=-=-=-=-=-=-=-=-=-=-=-=-=-= ${Off}"
-    
-    cd "$workingpath"/"$folder_lang"/
-
-    for langdir in */;
-        do
-        
+cd "$workingpath"/"$folder_lang"/
+langdir=$1
         # clean folder, remove trailing / character
         langdir="${langdir%%?}"
         
@@ -520,31 +519,29 @@ _update_lang()
                 
             done
         fi
-    done
 }
 
-_create_singlepage()
+
+_update_lang()
 {
-    # Method to create a long strip
-    # for reshare, or single image viewer like deviantArt
-    
-    # generating folder:
-    cd "$workingpath"
-    if [ -d "$workingpath/$folder_lowres/$folder_singlepage" ]; then
-    echo "${Green}* ${Off} $folder_lowres/$folder_singlepage already exist"
-    else
-    mkdir -p "$workingpath"/"$folder_lowres"/"$folder_singlepage"
-    echo "${Yellow}==> ${Blue} creating: ${Off} $folder_lowres/$folder_singlepage"
-    fi
+    # Method to catch a change or addition in langage
+    # can be activated as a standalone class when comic
+    # gfx are stable and doesn't change a lot.
     
     echo ""
-    echo "${Yellow} SINGLEPAGE : Gluing work.${Off}"
-    echo "${Yellow} =-=-=-=-=-=-=-=-=-=-=-=-=-= ${Off}"
+    echo "${Yellow} [LANG-MAIN] : Scanning for subdirectories.${Off}"
+    echo "${Yellow} =-=-=-=-=-=--=-=-=-=-=-=-=-=-=-=-=-=-=-=-= ${Off}"
     
-    cd "$workingpath"/"$folder_lang"/
+    export -f _update_lang_work
+    cd "$workingpath"/"$folder_lang"/ && ls -1d */ | parallel _update_lang_work "{}"
 
-    for langdir in */;
-    do
+    
+}
+
+_create_singlepage_work()
+{
+cd "$workingpath"/"$folder_lang"/
+langdir=$1
         # clean folder, remove trailing / character
         langdir="${langdir%%?}"
         
@@ -591,7 +588,28 @@ _create_singlepage()
         
             cp "$workingpath"/"$folder_cache"/"$langdir"/"$langdir"_"$jpgfile" "$workingpath"/"$folder_lowres"/"$folder_singlepage"/"$langdir"_"$jpgfile"
         fi
-    done
+}
+_create_singlepage()
+{
+    # Method to create a long strip
+    # for reshare, or single image viewer like deviantArt
+    
+    # generating folder:
+    cd "$workingpath"
+    if [ -d "$workingpath/$folder_lowres/$folder_singlepage" ]; then
+    echo "${Green}* ${Off} $folder_lowres/$folder_singlepage already exist"
+    else
+    mkdir -p "$workingpath"/"$folder_lowres"/"$folder_singlepage"
+    echo "${Yellow}==> ${Blue} creating: ${Off} $folder_lowres/$folder_singlepage"
+    fi
+    
+    echo ""
+    echo "${Yellow} SINGLEPAGE : Gluing work.${Off}"
+    echo "${Yellow} =-=-=-=-=-=-=-=-=-=-=-=-=-= ${Off}"
+    
+    export -f _create_singlepage_work
+    cd "$workingpath"/"$folder_lang"/ && ls -1d */ | parallel _create_singlepage_work "{}"
+
 }
 
 _create_zip_collection()
